@@ -1,0 +1,55 @@
+PATIENT MEDICAL RECORD
+=====================
+
+Patient Name: John Michael Smith
+Date of Birth: 03/15/1965
+Social Security Number: 123-45-6789
+Medical Record Number: MRN: 78901234
+Phone: (515) 620-1718
+Email: john.smith@email.com
+Address: 1234 Oak Street, Ames, IA 50010
+
+CHIEF COMPLAINT:
+Patient presents with persistent headaches, elevated blood pressure, and fatigue over the past 3 months.
+
+MEDICAL HISTORY:
+- Diagnosed with hypertension in 2018, currently on Lisinopril 20mg daily
+- Type 2 diabetes mellitus diagnosed in 2020, on Metformin 1000mg twice daily
+- History of hyperlipidemia, on Atorvastatin 40mg daily
+- Chronic kidney disease stage 2, diagnosed 2022
+- Generalized anxiety disorder, on Sertraline 50mg daily
+
+CURRENT MEDICATIONS:
+1. Lisinopril 20mg PO daily
+2. Metformin 1000mg PO BID
+3. Atorvastatin 40mg PO at bedtime
+4. Sertraline 50mg PO daily
+5. Aspirin 81mg PO daily
+
+VITAL SIGNS:
+- Blood Pressure: 158/94 mmHg
+- Heart Rate: 82 bpm
+- Temperature: 98.6°F
+- Respiratory Rate: 16/min
+- SpO2: 97% on room air
+- Weight: 210 lbs
+- Height: 5'10"
+- BMI: 30.1
+
+ASSESSMENT:
+1. Uncontrolled hypertension - consider increasing Lisinopril to 40mg or adding Amlodipine
+2. Type 2 diabetes - HbA1c pending, may need to add Glipizide if above 7.5%
+3. Chronic kidney disease - monitor GFR, currently stage 2 with GFR 72
+4. Anxiety - well controlled on current regimen
+5. Obesity - BMI 30.1, discussed dietary modifications and exercise
+
+PLAN:
+- Increase Lisinopril to 40mg daily
+- Order HbA1c, BMP, lipid panel, urinalysis
+- Follow up in 4 weeks
+- Referral to nutritionist for weight management
+- Continue current psychiatric medications
+
+Attending Physician: Dr. Sarah Johnson, MD
+Date: March 15, 2026
+Clinic: Iowa Heart & Vascular Center

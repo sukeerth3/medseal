@@ -1,0 +1,182 @@
+name: MedSeal CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  PYTHON_VERSION: "3.11"
+  JAVA_VERSION: "17"
+  NODE_VERSION: "20"
+
+jobs:
+  # Script lint
+  lint-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bash syntax
+        run: bash -n scripts/*.sh
+
+  # Terraform validate
+  validate-infra:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform fmt check
+        working-directory: infrastructure
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate root and modules
+        run: |
+          set -euo pipefail
+          for dir in infrastructure infrastructure/modules/*; do
+            [ -d "$dir" ] || continue
+            echo "Validating $dir"
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+          done
+
+  # Python tests
+  test-python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [enclave, cli]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.component }}
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Install enclave NLP model
+        if: matrix.component == 'enclave'
+        working-directory: enclave
+        run: python -m spacy download en_core_web_sm
+
+      - name: Run tests
+        working-directory: ${{ matrix.component }}
+        run: PYTHONPATH=. pytest tests -q
+
+  # Gateway tests
+  test-gateway:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: corretto
+
+      - name: Build and test
+        run: mvn -B verify
+
+  # Client build
+  build-client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Build client
+        run: npm ci && npm run build
+
+  # Build gateway JAR
+  build-gateway:
+    needs: [test-gateway]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: corretto
+
+      - name: Build JAR
+        working-directory: gateway
+        run: mvn -B package -DskipTests
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gateway-jar
+          path: gateway/target/gateway-1.0.0.jar
+
+  # Deterministic EIF build
+  build-enclave-eif:
+    needs: [test-python, lint-scripts, validate-infra]
+    runs-on: [self-hosted, linux, x64, nitro]
+    if: github.ref == 'refs/heads/main' && vars.NITRO_EIF_RUNNER_ENABLED == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Nitro build tooling
+        run: |
+          command -v docker
+          command -v nitro-cli
+
+      - name: Build deterministic EIF
+        run: scripts/build-enclave.sh
+
+      - name: Extract PCR tfvars
+        run: scripts/extract-pcrs.sh build/medseal.eif > build/pcrs.auto.tfvars
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: enclave-eif
+          path: |
+            build/medseal.eif
+            build/manifest.json
+            build/pcrs.auto.tfvars
+
+  skip-enclave-eif:
+    needs: [test-python, lint-scripts, validate-infra]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && vars.NITRO_EIF_RUNNER_ENABLED != 'true'
+
+    steps:
+      - name: Nitro runner warning
+        run: |
+          echo "::warning::Skipping EIF build because NITRO_EIF_RUNNER_ENABLED is not true. Configure a self-hosted Nitro-capable runner with labels: self-hosted, linux, x64, nitro."

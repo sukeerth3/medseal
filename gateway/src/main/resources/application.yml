@@ -1,0 +1,93 @@
+spring:
+  application:
+    name: medseal-gateway
+
+server:
+  port: 8080
+  ssl:
+    enabled: ${MEDSEAL_TLS_ENABLED:false}
+    key-store: ${MEDSEAL_TLS_KEYSTORE:}
+    key-store-password: ${MEDSEAL_TLS_KEYSTORE_PASSWORD:}
+    key-store-type: ${MEDSEAL_TLS_KEYSTORE_TYPE:PKCS12}
+
+# MedSeal configuration
+medseal:
+  aws:
+    region: us-east-1
+
+  enclave:
+    cid: 16                      # Enclave CID (auto-assigned by nitro-cli)
+    port: 5000                   # vsock port
+    timeout-seconds: 60          # Max processing time
+    use-tcp-fallback: false      # Set true for local dev without Nitro
+    tcp-host: localhost           # Only used when tcp-fallback is true
+    client-path: ${MEDSEAL_ENCLAVE_CLIENT_PATH:/opt/medseal/enclave}
+
+  s3:
+    bucket-name: medseal-results
+    kms-key-id: ${MEDSEAL_S3_KMS_KEY_ID:${MEDSEAL_KMS_KEY_ID:alias/medseal-master}}
+
+  dynamodb:
+    table-name: medseal-jobs
+    in-memory: ${MEDSEAL_DYNAMODB_IN_MEMORY:false}
+
+  kms:
+    key-id: ${MEDSEAL_KMS_KEY_ID:alias/medseal-master}
+    key-id-allowlist-regex: '${MEDSEAL_KMS_KEY_ID_ALLOWLIST_REGEX:^(alias/[A-Za-z0-9/_+=,.@-]+|arn:aws[a-zA-Z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[0-9a-fA-F-]{36}|alias/[A-Za-z0-9/_+=,.@-]+))$}'
+
+  security:
+    dev-token: ${MEDSEAL_DEV_TOKEN:}
+    dev-principal: ${MEDSEAL_DEV_PRINCIPAL:}
+    cors:
+      allowed-origins: ${MEDSEAL_CORS_ALLOWED_ORIGINS:}
+    jwt:
+      issuer-uri: ${MEDSEAL_JWT_ISSUER_URI:}
+      jwk-set-uri: ${MEDSEAL_JWT_JWK_SET_URI:}
+
+# Logging
+logging:
+  level:
+    com.medseal: INFO
+    medseal.audit: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%level] %logger{36}: %msg%n"
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+---
+# Development profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+medseal:
+  enclave:
+    use-tcp-fallback: true
+    tcp-host: localhost
+  security:
+    dev-token: ${MEDSEAL_DEV_TOKEN:dev-medseal-token}
+    dev-principal: ${MEDSEAL_DEV_PRINCIPAL:dev-user}
+    cors:
+      allowed-origins: ${MEDSEAL_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+logging:
+  level:
+    com.medseal: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

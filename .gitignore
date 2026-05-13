@@ -1,0 +1,63 @@
+# Build outputs
+build/
+*.eif
+enclave/bin/
+gateway/target/
+client/dist/
+client/node_modules/
+aws/
+awscliv2.zip
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Terraform
+.terraform/
+infrastructure/.terraform/
+infrastructure/terraform.tfstate*
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+*.tfvars
+!terraform.tfvars.example
+!infrastructure/terraform.tfvars.example
+!infrastructure/pcrs.bootstrap.tfvars
+
+# OS
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# Secrets (never commit)
+.codex-logs/
+*.pem
+*.key
+*.env
+*.p12
+*.jks
+
+# LaTeX build artifacts
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc
+missfont.log
+report.log
+report.pdf
+
+# Office lock/temp files
+~$*
+
+# Live-test evidence dossier (not source)
+verification/

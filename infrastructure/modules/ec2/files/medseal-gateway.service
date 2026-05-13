@@ -1,0 +1,37 @@
+[Unit]
+Description=MedSeal Gateway
+Documentation=file:/etc/medseal/gateway.env
+Wants=network-online.target medseal-kms-proxy.service
+After=network-online.target medseal-kms-proxy.service nitro-enclaves-allocator.service
+
+# Expected /etc/medseal/gateway.env values include:
+# MEDSEAL_ENV=production
+# SPRING_PROFILES_ACTIVE=prod
+# MEDSEAL_KMS_KEY_ID=<kms-key-arn-or-alias>
+# MEDSEAL_ENCLAVE_CID=16
+# MEDSEAL_ENCLAVE_USE_TCP_FALLBACK=false
+# MEDSEAL_S3_BUCKET_NAME=<results-bucket>
+# MEDSEAL_DYNAMODB_TABLE_NAME=<jobs-table>
+# MEDSEAL_TLS_ENABLED=true
+# MEDSEAL_TLS_KEYSTORE=/etc/medseal/tls/keystore.p12
+# MEDSEAL_TLS_KEYSTORE_PASSWORD=<secret>
+# MEDSEAL_CORS_ALLOWED_ORIGINS=https://app.example.com
+# MEDSEAL_JWT_ISSUER_URI=<issuer> or MEDSEAL_JWT_JWK_SET_URI=<jwks-uri>
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/medseal
+EnvironmentFile=/etc/medseal/gateway.env
+ExecStart=/usr/bin/java -jar /opt/medseal/gateway.jar
+StandardOutput=append:/var/log/medseal/gateway.log
+StandardError=append:/var/log/medseal/gateway.log
+SuccessExitStatus=143
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

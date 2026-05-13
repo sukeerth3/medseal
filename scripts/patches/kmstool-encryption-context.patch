@@ -1,0 +1,176 @@
+diff --git a/bin/kmstool-enclave-cli/main.c b/bin/kmstool-enclave-cli/main.c
+index 0c5f8f6..ad1d4ca 100644
+--- a/bin/kmstool-enclave-cli/main.c
++++ b/bin/kmstool-enclave-cli/main.c
+@@ -60,6 +60,7 @@ struct app_ctx {
+     const struct aws_string *encryption_algorithm;
+     const struct aws_string *key_id;
+     enum aws_key_spec key_spec;
++    const struct aws_string *encryption_context;
+ 
+     /* GenRandom parameters */
+     uint32_t length;
+@@ -92,6 +93,7 @@ static void s_usage_decrypt(int exit_code) {
+     fprintf(stderr, "    --ciphertext CIPHERTEXT: base64-encoded ciphertext that need to decrypt\n");
+     fprintf(stderr, "    --key-id KEY_ID: decrypt key id (for symmetric keys, is optional)\n");
+     fprintf(stderr, "    --encryption-algorithm ENCRYPTION_ALGORITHM: encryption algorithm for ciphertext\n");
++    fprintf(stderr, "    --encryption-context JSON: KMS encryption context JSON\n");
+     exit(exit_code);
+ }
+ 
+@@ -109,6 +111,7 @@ static void s_usage_genkey(int exit_code) {
+     fprintf(stderr, "    --aws-session-token SESSION_TOKEN: Session token associated with the access key ID\n");
+     fprintf(stderr, "    --key-id KEY_ID: key id\n");
+     fprintf(stderr, "    --key-spec KEY_SPEC: The key spec used to create the key (AES-256 or AES-128).\n");
++    fprintf(stderr, "    --encryption-context JSON: KMS encryption context JSON\n");
+     exit(exit_code);
+ }
+ 
+@@ -139,6 +142,7 @@ static struct aws_cli_option s_long_options[] = {
+     {"key-id", AWS_CLI_OPTIONS_REQUIRED_ARGUMENT, NULL, 'K'},
+     {"key-spec", AWS_CLI_OPTIONS_REQUIRED_ARGUMENT, NULL, 'p'},
+     {"encryption-algorithm", AWS_CLI_OPTIONS_REQUIRED_ARGUMENT, NULL, 'a'},
++    {"encryption-context", AWS_CLI_OPTIONS_REQUIRED_ARGUMENT, NULL, 'e'},
+     {"length", AWS_CLI_OPTIONS_REQUIRED_ARGUMENT, NULL, 'l'},
+     {"help", AWS_CLI_OPTIONS_NO_ARGUMENT, NULL, 'h'},
+     {NULL, 0, NULL, 0},
+@@ -162,13 +166,14 @@ static void s_parse_options(int argc, char **argv, const char *subcommand, struc
+     ctx->key_id = NULL;
+     ctx->key_spec = -1;
+     ctx->encryption_algorithm = NULL;
++    ctx->encryption_context = NULL;
+     ctx->length = -1;
+ 
+     aws_cli_optind = 2;
+     while (true) {
+         int option_index = 0;
+ 
+-        int c = aws_cli_getopt_long(argc, argv, "r:x:k:s:t:c:K:p:a:l:h", s_long_options, &option_index);
++        int c = aws_cli_getopt_long(argc, argv, "r:x:k:s:t:c:K:p:a:e:l:h", s_long_options, &option_index);
+         if (c == -1) {
+             break;
+         }
+@@ -211,6 +216,9 @@ static void s_parse_options(int argc, char **argv, const char *subcommand, struc
+                          case 'K':
+                             ctx->key_id = aws_string_new_from_c_str(ctx->allocator, aws_cli_optarg);
+                             break;
++                         case 'e':
++                            ctx->encryption_context = aws_string_new_from_c_str(ctx->allocator, aws_cli_optarg);
++                            break;
+                         default:
+                             fprintf(stderr, "Unknown option: %s\n", aws_cli_optarg);
+                             s_usage_decrypt(1);
+@@ -230,6 +238,9 @@ static void s_parse_options(int argc, char **argv, const char *subcommand, struc
+                                 s_usage_genkey(1);
+                             }
+                             break;
++                        case 'e':
++                            ctx->encryption_context = aws_string_new_from_c_str(ctx->allocator, aws_cli_optarg);
++                            break;
+                     }
+                 } else if (strncmp(subcommand, GENRANDOM_CMD, MAX_SUB_COMMAND_LENGTH) == 0) {
+                     switch(c) {
+@@ -386,8 +397,14 @@ static int decrypt(struct app_ctx *app_ctx, struct aws_byte_buf *ciphertext_decr
+ 
+     /* Decrypt the data with KMS. */
+     struct aws_byte_buf ciphertext_decrypted;
+-    rc = aws_kms_decrypt_blocking(
+-        client, app_ctx->key_id, app_ctx->encryption_algorithm, &ciphertext, &ciphertext_decrypted);
++    if (app_ctx->encryption_context != NULL) {
++        rc = aws_kms_decrypt_blocking_with_context(
++            client, app_ctx->key_id, app_ctx->encryption_algorithm, &ciphertext,
++            app_ctx->encryption_context, &ciphertext_decrypted);
++    } else {
++        rc = aws_kms_decrypt_blocking(
++            client, app_ctx->key_id, app_ctx->encryption_algorithm, &ciphertext, &ciphertext_decrypted);
++    }
+     
+     aws_byte_buf_clean_up(&ciphertext);
+     fail_on(rc != AWS_OP_SUCCESS, "Could not decrypt ciphertext");
+@@ -421,7 +438,13 @@ static int gen_datakey(struct app_ctx *app_ctx, struct aws_byte_buf *ciphertext_
+     /* Generate data key with KMS. */
+     struct aws_byte_buf plaintext;
+     struct aws_byte_buf ciphertext;
+-    rc = aws_kms_generate_data_key_blocking(client, app_ctx->key_id, app_ctx->key_spec, &plaintext, &ciphertext);
++    if (app_ctx->encryption_context != NULL) {
++        rc = aws_kms_generate_data_key_blocking_with_context(
++            client, app_ctx->key_id, app_ctx->key_spec, app_ctx->encryption_context, &plaintext, &ciphertext);
++    } else {
++        rc = aws_kms_generate_data_key_blocking(
++            client, app_ctx->key_id, app_ctx->key_spec, &plaintext, &ciphertext);
++    }
+     fail_on(rc != AWS_OP_SUCCESS, "Could not generate data key");
+     
+     /* Encode ciphertext into base64 for printing out the result. */
+diff --git a/include/aws/nitro_enclaves/kms.h b/include/aws/nitro_enclaves/kms.h
+index 3fb4d20..fa2ad79 100644
+--- a/include/aws/nitro_enclaves/kms.h
++++ b/include/aws/nitro_enclaves/kms.h
+@@ -1100,6 +1100,28 @@ int aws_kms_generate_data_key_blocking(
+     struct aws_byte_buf *ciphertext_blob
+     /* TODO: err_reason */);
+ 
++/**
++ * Call [AWS KMS GenerateDataKey API](https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateDataKey.html)
++ * with an optional encryption context.
++ *
++ * @param[in]   client              The AWS KMS client to use for calling the API.
++ * @param[in]   key_id              The ARN or alias of AWS KMS CMK used to encrypt the data key.
++ * @param[in]   key_spec            The spec of key to generate: an AES128 or an AES256 key.
++ * @param[in]   encryption_context  Optional string containing valid JSON with the KMS encryption context.
++ * @param[out]  plaintext           The plaintext output of the call. Should be an empty, but non-null aws_byte_buf.
++ * @param[out]  ciphertext_blob     The ciphertext blob output of the call. Should be an empty, but non-null aws_byte_buf.
++ * @return                          Returns AWS_OP_SUCCESS if the call succeeds and plaintext and ciphertext_blob are
++ *                                  populated.
++ */
++AWS_NITRO_ENCLAVES_API
++int aws_kms_generate_data_key_blocking_with_context(
++    struct aws_nitro_enclaves_kms_client *client,
++    const struct aws_string *key_id,
++    enum aws_key_spec key_spec,
++    const struct aws_string *encryption_context,
++    struct aws_byte_buf *plaintext,
++    struct aws_byte_buf *ciphertext_blob);
++
+ /**
+  * Call [AWS KMS GenerateRandom API](https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateRandom.html).
+  * This function blocks and waits for the reply.
+diff --git a/source/kms.c b/source/kms.c
+index 1ba32b6..5a491f2 100644
+--- a/source/kms.c
++++ b/source/kms.c
+@@ -2846,6 +2846,18 @@ int aws_kms_generate_data_key_blocking(
+     struct aws_byte_buf *plaintext,
+     struct aws_byte_buf *ciphertext_blob
+     /* TODO: err_reason */) {
++    return aws_kms_generate_data_key_blocking_with_context(
++        client, key_id, key_spec, NULL, plaintext, ciphertext_blob);
++}
++
++int aws_kms_generate_data_key_blocking_with_context(
++    struct aws_nitro_enclaves_kms_client *client,
++    const struct aws_string *key_id,
++    enum aws_key_spec key_spec,
++    const struct aws_string *encryption_context,
++    struct aws_byte_buf *plaintext,
++    struct aws_byte_buf *ciphertext_blob
++    /* TODO: err_reason */) {
+     AWS_PRECONDITION(client != NULL);
+     AWS_PRECONDITION(key_id != NULL);
+     AWS_PRECONDITION(plaintext != NULL);
+@@ -2876,6 +2888,15 @@ int aws_kms_generate_data_key_blocking(
+     }
+     request_structure->recipient->key_encryption_algorithm = AWS_KEA_RSAES_OAEP_SHA_256;
+ 
++    if (encryption_context) {
++        struct json_object *context_json = s_json_object_from_string(encryption_context);
++        rc = s_aws_hash_table_from_json(client->allocator, context_json, &request_structure->encryption_context);
++        json_object_put(context_json);
++        if (rc != AWS_OP_SUCCESS) {
++            goto err_clean;
++        }
++    }
++
+     request = aws_kms_generate_data_key_request_to_json(request_structure);
+     if (request == NULL) {
+         goto err_clean;

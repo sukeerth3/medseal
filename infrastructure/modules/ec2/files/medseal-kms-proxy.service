@@ -1,0 +1,15 @@
+[Unit]
+Description=MedSeal KMS vsock proxy
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/vsock-proxy 8000 kms.us-east-1.amazonaws.com 443 --config /etc/vsock-proxy/medseal.yaml
+StandardOutput=append:/var/log/medseal/kms-proxy.log
+StandardError=append:/var/log/medseal/kms-proxy.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

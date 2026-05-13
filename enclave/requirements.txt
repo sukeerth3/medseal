@@ -1,0 +1,3 @@
+cryptography==48.0.0
+spacy==3.8.14
+cbor2==6.0.1

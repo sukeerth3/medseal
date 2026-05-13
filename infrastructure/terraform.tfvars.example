@@ -1,0 +1,21 @@
+# Copy this to terraform.tfvars and fill in your values
+
+aws_region           = "us-east-1"
+project_name         = "medseal"
+environment          = "dev"
+instance_type        = "c5.xlarge"    # Must support Nitro Enclaves
+key_name             = "your-ssh-key" # Your AWS SSH key pair name
+allowed_ingress_cidr = "203.0.113.10/32"
+
+# Fill these from: ./scripts/extract-pcrs.sh build/medseal.eif
+allowed_pcr0 = "PLACEHOLDER"
+allowed_pcr1 = "PLACEHOLDER"
+allowed_pcr2 = "PLACEHOLDER"
+
+# Optional client identities allowed to use the KMS key directly.
+# Do not include the EC2 gateway role here.
+client_kms_principal_arns = []
+
+# Dev/demo convenience: lets terraform destroy remove versioned result objects.
+# Set to false for staging/prod retention workflows.
+s3_force_destroy = true

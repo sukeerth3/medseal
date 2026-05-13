@@ -1,0 +1,4 @@
+# Allow only the KMS regional endpoint needed by the enclave.
+allowlist:
+  - address: kms.us-east-1.amazonaws.com
+    port: 443
